@@ -8,9 +8,20 @@ public class Rocket : MonoBehaviour
 {
     Rigidbody rigidbody;
     AudioSource audio;
+    bool collisionEnabled = true;
 
     [SerializeField] float rcsThrust = 250f;
     [SerializeField] float mainThrust = 50f;
+
+    [SerializeField] AudioClip mainEngine;
+    [SerializeField] AudioClip success;
+    [SerializeField] AudioClip death;
+
+    [SerializeField] ParticleSystem mainEngineParticles;
+    [SerializeField] ParticleSystem successParticles;
+    [SerializeField] ParticleSystem deathParticles;
+
+    [SerializeField] float levelLoadDelay = 2f;
 
     enum State { Alive, Dying, Transcending};
     State currentState = State.Alive;
@@ -25,7 +36,23 @@ public class Rocket : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        ProcessInput();        
+        ProcessInput();
+        if (Debug.isDebugBuild)
+        {
+            RespondToDebugKey();
+        }
+        
+    }
+
+    private void RespondToDebugKey()
+    {
+        if (Input.GetKeyDown("l"))
+        {
+            LoadNextScene();
+        }else if (Input.GetKeyDown("c"))
+        {
+            collisionEnabled = !collisionEnabled;
+        }
     }
 
     private void ProcessInput()
@@ -41,13 +68,15 @@ public class Rocket : MonoBehaviour
     {
         if (Input.GetKey(KeyCode.Space))
         {
-            rigidbody.AddRelativeForce(Vector3.up * mainThrust);
+            rigidbody.AddRelativeForce(Vector3.up * mainThrust * Time.deltaTime);
             if (!audio.isPlaying)
-                audio.Play();
+                audio.PlayOneShot(mainEngine);
+            mainEngineParticles.Play();
         }
         else
         {
             audio.Stop();
+            mainEngineParticles.Stop();
         }
     }
 
@@ -68,7 +97,7 @@ public class Rocket : MonoBehaviour
 
     private void OnCollisionEnter(Collision collision)
     {
-        if(currentState != State.Alive)
+        if(currentState != State.Alive || !collisionEnabled)
         {
             return;
         }
@@ -80,22 +109,28 @@ public class Rocket : MonoBehaviour
                 break;
             case "Finish":
                 currentState = State.Transcending;
-                Invoke("LoadNextScene", 1f);
+                audio.Stop();
+                audio.PlayOneShot(success);
+                successParticles.Play();
+                Invoke("LoadNextScene", levelLoadDelay);
                 break;
             default:
                 currentState = State.Dying;
-                Invoke("Dying", 1f);
+                audio.Stop();
+                audio.PlayOneShot(death);
+                deathParticles.Play();
+                Invoke("Dying", levelLoadDelay);
                 break;
         }
     }
 
-    private static void Dying()
+    private void Dying()
     {
         SceneManager.LoadScene(0);
     }
 
     private void LoadNextScene()
     {
-        SceneManager.LoadScene(1);
+        SceneManager.LoadScene((SceneManager.GetActiveScene().buildIndex+1)%SceneManager.sceneCountInBuildSettings);
     }
 }
